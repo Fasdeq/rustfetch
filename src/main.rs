@@ -283,6 +283,7 @@ fn get_visible_width(line: &str) -> usize {
     clean_line.chars().count()
 }
 
+// ПРАВИЛЬНОЕ ТЕКСТОВОЕ ВШИВАНИЕ ФАЙЛОВ ЛОГОТИПОВ С УРОВНЯ ВЫШЕ ВАШЕЙ ПАПКИ SRC
 fn get_embedded_ascii(distro_name: &str) -> Option<&'static str> {
     match distro_name.to_lowercase().as_str() {
         "arch"        => Some(include_str!("../ascii/arch.txt")),
