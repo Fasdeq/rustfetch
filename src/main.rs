@@ -97,10 +97,20 @@ fn main() {
             };
             
             let icon_str = match m_cfg.label.as_str() {
-                "OS" => "  ", "Uptime" => "  ", "Packages" => "  ", "DE/WM" => "  ",
-                "Theme" => "  ", "Terminal" => "  ", "CPU" => "  ", "GPU" => "  ",
-                "Memory" => "  ", "Disk" => "  ", "Battery" => "  ", "Network" => "  ",
-                "Updates" => "  ", _ => &m_cfg.icon,
+                "OS"        => "   ",
+                "Uptime"    => "   ",
+                "Packages"  => "   ",
+                "DE/WM"     => "   ",
+                "Theme"     => "   ",
+                "Terminal"  => "   ",
+                "CPU"       => "   ",
+                "GPU"       => "   ",
+                "Memory"    => "   ",
+                "Disk"      => "   ",
+                "Battery"   => "   ",
+                "Network"   => "   ",
+                "Updates"   => "   ",
+                _           => &m_cfg.icon,
             };
 
             let key = format!("{} {}", icon_str, label);
@@ -179,7 +189,6 @@ fn parse_ff_color(color_token: &str) -> String {
 
 fn parse_builtin_c() -> HashMap<String, FastfetchLogoData> {
     let mut map = HashMap::new();
-    
     let content = include_str!("builtin.c");
 
     let mut current_names = Vec::new();
@@ -194,14 +203,11 @@ fn parse_builtin_c() -> HashMap<String, FastfetchLogoData> {
             current_names.clear();
             current_colors.clear();
             in_names = true;
-            
             if let Some(start) = line_trimmed.find('{') {
                 let sub = &line_trimmed[start+1..];
                 for part in sub.split(',') {
                     let name = part.trim().trim_matches('}').trim().trim_matches('"').to_lowercase();
-                    if !name.is_empty() {
-                        current_names.push(name);
-                    }
+                    if !name.is_empty() { current_names.push(name); }
                 }
             }
             if line_trimmed.contains('}') { in_names = false; }
@@ -211,9 +217,7 @@ fn parse_builtin_c() -> HashMap<String, FastfetchLogoData> {
         if in_names {
             for part in line_trimmed.split(',') {
                 let name = part.trim().trim_matches('}').trim().trim_matches('"').to_lowercase();
-                if !name.is_empty() {
-                    current_names.push(name);
-                }
+                if !name.is_empty() { current_names.push(name); }
             }
             if line_trimmed.contains('}') { in_names = false; }
             continue;
@@ -234,9 +238,7 @@ fn parse_builtin_c() -> HashMap<String, FastfetchLogoData> {
                 in_colors = false;
                 if !current_names.is_empty() {
                     let logo_data = FastfetchLogoData { colors: current_colors.clone() };
-                    for name in &current_names {
-                        map.insert(name.clone(), logo_data.clone());
-                    }
+                    for name in &current_names { map.insert(name.clone(), logo_data.clone()); }
                 }
             }
             continue;
@@ -251,9 +253,7 @@ fn parse_builtin_c() -> HashMap<String, FastfetchLogoData> {
                 }
                 if !current_names.is_empty() {
                     let logo_data = FastfetchLogoData { colors: current_colors.clone() };
-                    for name in &current_names {
-                        map.insert(name.clone(), logo_data.clone());
-                    }
+                    for name in &current_names { map.insert(name.clone(), logo_data.clone()); }
                 }
             } else {
                 let cleaned = line_trimmed.trim_end_matches(',');
@@ -283,24 +283,44 @@ fn get_visible_width(line: &str) -> usize {
     clean_line.chars().count()
 }
 
+fn get_embedded_ascii(distro_name: &str) -> Option<&'static str> {
+    match distro_name.to_lowercase().as_str() {
+        "arch"        => Some(include_str!("../ascii/arch.txt")),
+        "nixos"       => Some(include_str!("../ascii/nixos.txt")),
+        "gentoo"      => Some(include_str!("../ascii/gentoo.txt")),
+        "manjaro"     => Some(include_str!("../ascii/manjaro.txt")),
+        "endeavouros" => Some(include_str!("../ascii/endeavouros.txt")),
+        _             => None,
+    }
+}
+
 fn render_split(distro_name: &str, info_lines: Vec<String>, cfg: &Config) {
-    let ascii_file_path = format!("ascii/{}.txt", distro_name.to_lowercase());
-    let ascii_content = match fs::read_to_string(&ascii_file_path) {
-        Ok(content) => content,
-        Err(_) => {
-            for line in info_lines {
-                println!("{}", line);
-            }
-            return;
+    let mut current_logo_name = distro_name.to_lowercase();
+    
+    let ascii_content = match get_embedded_ascii(&current_logo_name) {
+        Some(content) => content,
+        None => {
+            current_logo_name = "arch".to_string(); 
+            get_embedded_ascii("arch").unwrap_or("")
         }
     };
+    
     let ascii_lines: Vec<&str> = ascii_content.lines().collect();
-
     let max_lines = std::cmp::max(ascii_lines.len(), info_lines.len());
     
     let builtin_colors = parse_builtin_c();
-    let empty_logo_data = FastfetchLogoData { colors: vec![] };
-    let logo_data = builtin_colors.get(&distro_name.to_lowercase()).unwrap_or(&empty_logo_data);
+    
+    let logo_data = builtin_colors.get(&current_logo_name).cloned().unwrap_or_else(|| {
+        FastfetchLogoData {
+            colors: vec![
+                "\x1b[36m".to_string(), 
+                "\x1b[37m".to_string(), 
+                "\x1b[34m".to_string(), 
+                "\x1b[35m".to_string(), 
+                "\x1b[32m".to_string(), 
+            ]
+        }
+    });
     
     let custom_fallback = format!("\x1b[{}m", cfg.display.colors.primary);
     let fallback_color = logo_data.colors.first().cloned().unwrap_or(custom_fallback);
@@ -313,9 +333,9 @@ fn render_split(distro_name: &str, info_lines: Vec<String>, cfg: &Config) {
             let visible_len = get_visible_width(orig_line);
             
             let mut colored_line = orig_line.to_string();
-
             let mut patterns_exist = false;
-            for idx in 0..10 {
+            
+            for idx in 1..10 {
                 let p1 = format!("${}", idx);
                 let p2 = format!("${{{}}}", idx);
                 if colored_line.contains(&p1) || colored_line.contains(&p2) {
@@ -324,9 +344,16 @@ fn render_split(distro_name: &str, info_lines: Vec<String>, cfg: &Config) {
                 }
             }
 
-            for (idx, color_code) in logo_data.colors.iter().enumerate() {
+            for idx in 0..15 {
                 let placeholder_simple = format!("${}", idx + 1);
                 let placeholder_braces = format!("${{{}}}", idx + 1);
+                
+                let color_code = if idx < logo_data.colors.len() {
+                    &logo_data.colors[idx]
+                } else {
+                    "\x1b[37m" 
+                };
+
                 colored_line = colored_line.replace(&placeholder_simple, color_code);
                 colored_line = colored_line.replace(&placeholder_braces, color_code);
             }
@@ -334,8 +361,7 @@ fn render_split(distro_name: &str, info_lines: Vec<String>, cfg: &Config) {
             colored_line = colored_line.replace("$%", "\x1b[0m");
             colored_line = colored_line.replace("$%{}", "\x1b[0m");
 
-            if logo_data.colors.is_empty() || !patterns_exist {
-                // Если цветов в бд нет или в файле нет токенов — красим всю строку в дефолтный цвет
+            if !patterns_exist {
                 print!("{}{}\x1b[0m", fallback_color, colored_line);
             } else {
                 print!("{}\x1b[0m", colored_line);
